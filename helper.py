@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from torch import nn, optim
 from torch.autograd import Variable
+import json
 
 
 def test_network(net, trainloader):
@@ -64,31 +65,38 @@ def view_recon(img, recon):
         ax.axis('off')
         ax.set_adjustable('box-forced')
 
-def view_classify(img, ps, version="MNIST"):
-    ''' Function for viewing an image and it's predicted classes.
-    '''
-    ps = ps.data.numpy().squeeze()
+with open("dataset/labels.json", "r", encoding="utf-8") as f:
+    label_map = json.load(f)
 
-    fig, (ax1, ax2) = plt.subplots(figsize=(6,9), ncols=2)
-    ax1.imshow(img.resize_(1, 28, 28).numpy().squeeze())
+def view_classify(img, ps, top_k=10):
+    '''Visualiza una imagen y muestra las top_k predicciones del modelo junto con su correspondencia.'''
+    ps = ps.detach().cpu().numpy().squeeze()
+
+    # Ordenar probabilidades de mayor a menor
+    topk_idx = np.argsort(ps)[-top_k:][::-1]
+    topk_ps = ps[topk_idx]
+
+    fig, (ax1, ax2) = plt.subplots(figsize=(6, 9), ncols=2)
+    ax1.imshow(img.numpy().squeeze(), cmap='gray')
     ax1.axis('off')
-    ax2.barh(np.arange(10), ps)
-    ax2.set_aspect(0.1)
-    ax2.set_yticks(np.arange(10))
-    if version == "MNIST":
-        ax2.set_yticklabels(np.arange(10))
-    elif version == "Fashion":
-        ax2.set_yticklabels(['T-shirt/top',
-                            'Trouser',
-                            'Pullover',
-                            'Dress',
-                            'Coat',
-                            'Sandal',
-                            'Shirt',
-                            'Sneaker',
-                            'Bag',
-                            'Ankle Boot'], size='small');
-    ax2.set_title('Class Probability')
-    ax2.set_xlim(0, 1.1)
 
+    # 🔹 Ajustar las etiquetas al rango 1–101
+    class_numbers = topk_idx + 1
+
+    ax2.barh(np.arange(top_k), topk_ps[::-1])
+    ax2.set_aspect(0.1)
+    ax2.set_yticks(np.arange(top_k))
+    ax2.set_yticklabels(class_numbers[::-1])  # ahora muestra 1–101
+    ax2.set_title('Top Predicted Classes')
+    ax2.set_xlim(0, 1.1)
     plt.tight_layout()
+
+    # 🔹 Texto de correspondencias correctas
+    correspondencias = "\n".join([
+        f"{num} = {label_map.get(str(num), '?')}" for num in class_numbers
+    ])
+
+    plt.figtext(0.5, 0.02, correspondencias, wrap=True,
+                horizontalalignment='center', fontsize=12)
+
+    plt.show()
